@@ -6,6 +6,10 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PUBLIC_DIR = path.join(__dirname, 'public');
+const XTERM_VENDOR_FILES = {
+  '/vendor/xterm/xterm.js': path.join(__dirname, 'node_modules', '@xterm', 'xterm', 'lib', 'xterm.js'),
+  '/vendor/xterm/xterm.css': path.join(__dirname, 'node_modules', '@xterm', 'xterm', 'css', 'xterm.css'),
+};
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -97,20 +101,12 @@ export function createWebServer(options = {}) {
     req.pipe(upstreamReq);
   }
 
-  async function serveStatic(req, res, pathname) {
-    const relPath = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
-    const resolved = path.resolve(publicDir, relPath);
-    if (!resolved.startsWith(publicDir + path.sep) && resolved !== path.join(publicDir, 'index.html')) {
-      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('Forbidden');
-      return;
-    }
-
+  async function serveFile(res, filePath) {
     try {
-      const stat = await fs.stat(resolved);
-      const filePath = stat.isDirectory() ? path.join(resolved, 'index.html') : resolved;
-      const content = await fs.readFile(filePath);
-      const ext = path.extname(filePath).toLowerCase();
+      const stat = await fs.stat(filePath);
+      const resolvedFile = stat.isDirectory() ? path.join(filePath, 'index.html') : filePath;
+      const content = await fs.readFile(resolvedFile);
+      const ext = path.extname(resolvedFile).toLowerCase();
       res.writeHead(200, {
         'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
         'Content-Length': content.length,
@@ -126,6 +122,23 @@ export function createWebServer(options = {}) {
       res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Internal Server Error');
     }
+  }
+
+  async function serveStatic(req, res, pathname) {
+    if (Object.hasOwn(XTERM_VENDOR_FILES, pathname)) {
+      await serveFile(res, XTERM_VENDOR_FILES[pathname]);
+      return;
+    }
+
+    const relPath = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
+    const resolved = path.resolve(publicDir, relPath);
+    if (!resolved.startsWith(publicDir + path.sep) && resolved !== path.join(publicDir, 'index.html')) {
+      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Forbidden');
+      return;
+    }
+
+    await serveFile(res, resolved);
   }
 
   const server = http.createServer((req, res) => {

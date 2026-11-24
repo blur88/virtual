@@ -74,5 +74,27 @@ export function createApiClient(options = {}) {
         method: 'DELETE',
       });
     },
+    getStatus() {
+      return request('/api/status');
+    },
+    getTranscript() {
+      return request('/api/transcript');
+    },
+    sendChat(message) {
+      return request('/api/chat', {
+        method: 'POST',
+        body: { message },
+      });
+    },
+    resetAgent() {
+      return request('/api/agent/reset', {
+        method: 'POST',
+      });
+    },
+    overrideTerminalLease() {
+      return request('/api/terminal/override-lease', {
+        method: 'POST',
+      });
+    },
   };
 }
