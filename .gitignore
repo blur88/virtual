@@ -43,3 +43,6 @@ Thumbs.db
 !.vscode/extensions.json
 *.swp
 *.swo
+
+# AI Office runtime state
+.office/
