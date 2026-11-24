@@ -172,4 +172,18 @@ describe('web reverse proxy & static server', () => {
       await new Promise((resolve) => blocker.close(resolve));
     }
   });
+
+  it('serves local @xterm/xterm assets at /vendor/xterm/* without external CDN', async () => {
+    const jsRes = await fetch(`${webBaseUrl}/vendor/xterm/xterm.js`);
+    assert.equal(jsRes.status, 200);
+    assert.ok((jsRes.headers.get('content-type') || '').includes('application/javascript'));
+    const jsText = await jsRes.text();
+    assert.ok(jsText.length > 1000);
+
+    const cssRes = await fetch(`${webBaseUrl}/vendor/xterm/xterm.css`);
+    assert.equal(cssRes.status, 200);
+    assert.ok((cssRes.headers.get('content-type') || '').includes('text/css'));
+    const cssText = await cssRes.text();
+    assert.ok(cssText.includes('.xterm'));
+  });
 });

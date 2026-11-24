@@ -2,8 +2,11 @@ FROM node:24-alpine
 
 WORKDIR /app
 
-COPY web/package.json ./
-COPY web/ ./
+COPY web/package.json web/package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY web/public ./public
+COPY web/server.js web/cli.js ./
 
 RUN chown -R node:node /app
 
