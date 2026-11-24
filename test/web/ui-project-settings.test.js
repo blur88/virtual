@@ -12,7 +12,7 @@ function createOfficeDom() {
   banner.id = 'active-project-banner';
 
   const main = doc.createElement('main');
-  main.id = 'workspace-main';
+  main.id = 'office-main';
 
   const chatPanel = doc.createElement('section');
   chatPanel.id = 'chat-view-panel';
@@ -122,7 +122,7 @@ function createMockBridgeFetch(initialState) {
           headers: { 'Content-Type': 'application/json' },
         });
       }
-      if (method === 'PATCH') {
+      if (method === 'PUT') {
         store.projects[idx] = {
           ...store.projects[idx],
           ...(body.name !== undefined ? { name: body.name } : {}),

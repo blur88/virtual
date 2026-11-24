@@ -54,6 +54,7 @@ describe('host-bridge chat, transcript WS, input lease, and terminal cutoff', ()
   let tmuxInHostShell;
   let resetCalls;
   let ptyWrites;
+  let nativeClientActivity;
   const token = 'ws-test-token-abcdef';
 
   beforeEach(async () => {
@@ -65,6 +66,7 @@ describe('host-bridge chat, transcript WS, input lease, and terminal cutoff', ()
     tmuxInHostShell = false;
     resetCalls = 0;
     ptyWrites = [];
+    nativeClientActivity = 1000;
 
     const registry = createProjectRegistry({
       registryPath: path.join(tmpDir, '.office', 'projects.json'),
@@ -93,12 +95,17 @@ describe('host-bridge chat, transcript WS, input lease, and terminal cutoff', ()
         resetCalls += 1;
         return { sessionName: 'ai-office-test-ws', created: true };
       },
+      listClients: async () => [
+        { name: '/dev/pts/web', activity: 9999 },
+        { name: '/dev/pts/native', activity: nativeClientActivity },
+      ],
     };
 
     const fakePtyFactory = () => {
       const dataHandlers = [];
       const exitHandlers = [];
       return {
+        ptyName: '/dev/pts/web',
         write(data) {
           ptyWrites.push(data);
           for (const cb of dataHandlers) cb(data);
@@ -154,8 +161,8 @@ describe('host-bridge chat, transcript WS, input lease, and terminal cutoff', ()
     assert.deepEqual(history.turns, []);
     assert.equal(history.isBusy, false);
 
-    // Agent is idle -> POST /api/chat succeeds (202)
-    const chatRes = await fetch(`${baseUrl}/api/chat`, {
+    // Agent is idle -> POST /api/chat/send succeeds (202)
+    const chatRes = await fetch(`${baseUrl}/api/chat/send`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -178,8 +185,8 @@ describe('host-bridge chat, transcript WS, input lease, and terminal cutoff', ()
     const userTurnMsg = await nextMsg((m) => m.type === 'turn' && m.turn.type === 'user');
     assert.equal(userTurnMsg.turn.text, 'How do I plan this feature?');
 
-    // While busy, POST /api/chat must be rejected with 409
-    const busyRes = await fetch(`${baseUrl}/api/chat`, {
+    // While busy, POST /api/chat/send (and /api/chat alias) must be rejected with 409
+    const busyRes = await fetch(`${baseUrl}/api/chat/send`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -226,8 +233,12 @@ describe('host-bridge chat, transcript WS, input lease, and terminal cutoff', ()
     const initialLease = await nextMsg((m) => m.type === 'lease');
     assert.equal(initialLease.inputLease.holder, 'none');
 
-    // Simulate native tmux attach typing
-    bridge.inputLease.recordNativeActivity();
+    // Simulate native tmux attach client activity advancing (production polling path)
+    nativeClientActivity = 1005;
+    const nativeLeaseMsg = await nextMsg(
+      (m) => m.type === 'lease' && m.inputLease.holder === 'native'
+    );
+    assert.equal(nativeLeaseMsg.inputLease.holder, 'native');
 
     // Web input is blocked while native holds lease
     ws.send(JSON.stringify({ type: 'input', data: 'ls\n' }));

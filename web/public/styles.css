@@ -157,7 +157,7 @@ body {
   color: var(--danger);
 }
 
-.workspace-main {
+.office-main {
   flex: 1;
   padding: 1.5rem;
   max-width: 1120px;
@@ -337,7 +337,8 @@ body {
 }
 
 .status-banner-connection,
-.status-banner-rate-limit {
+.status-banner-rate-limit,
+.status-banner-missing-skill {
   background: rgba(251, 191, 36, 0.14);
   color: #fde68a;
 }

@@ -197,15 +197,24 @@ describe('host-bridge HTTP auth & project settings', () => {
     const { project: active } = await activeRes.json();
     assert.equal(active.id, p2.id);
 
-    // Edit repo1 name
+    // Edit repo1 name via PUT (and verify PATCH alias)
     const editRes = await fetch(`${baseUrl}/api/projects/${p1.id}`, {
-      method: 'PATCH',
+      method: 'PUT',
       headers,
       body: JSON.stringify({ name: 'Repo One Renamed' }),
     });
     assert.equal(editRes.status, 200);
     const { project: edited } = await editRes.json();
     assert.equal(edited.name, 'Repo One Renamed');
+
+    const patchAliasRes = await fetch(`${baseUrl}/api/projects/${p1.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ name: 'Repo One Renamed Again' }),
+    });
+    assert.equal(patchAliasRes.status, 200);
+    const { project: patched } = await patchAliasRes.json();
+    assert.equal(patched.name, 'Repo One Renamed Again');
 
     // Remove repo2 non-destructively
     const delRes = await fetch(`${baseUrl}/api/projects/${p2.id}`, {

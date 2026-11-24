@@ -7,6 +7,8 @@ import { renderStatusBanner } from './components/status-banner.js';
 import { renderResetAgentModal } from './components/reset-agent-modal.js';
 
 const RATE_LIMIT_RE = /\b(rate limit|usage limit|too many requests|429)\b/i;
+const MISSING_SKILL_RE =
+  /\b(missing skill|skill\b.*\b(missing|not found|inaccessible|unreadable)|could not (find|read)\b.*SKILL\.md)\b/i;
 
 function resolveWsBaseUrl(explicitBase) {
   if (explicitBase) return explicitBase.replace(/\/+$/, '');
@@ -132,6 +134,13 @@ export function createOfficeApp(options = {}) {
     slot.replaceChildren(resetBtn);
   }
 
+  function sendTerminalMessage(payload) {
+    const openState = WsCtor?.OPEN ?? WebSocket.OPEN;
+    if (terminalWs && terminalWs.readyState === openState) {
+      terminalWs.send(JSON.stringify(payload));
+    }
+  }
+
   function mountXterm(mountEl) {
     if (termInstance || typeof TerminalCtor !== 'function') return;
     termInstance = new TerminalCtor({
@@ -144,9 +153,7 @@ export function createOfficeApp(options = {}) {
       if (state.inputLease?.holder === 'native') {
         return;
       }
-      if (terminalWs && terminalWs.readyState === 1) {
-        terminalWs.send(JSON.stringify({ type: 'input', data }));
-      }
+      sendTerminalMessage({ type: 'input', data });
     });
   }
 
@@ -160,6 +167,12 @@ export function createOfficeApp(options = {}) {
       state.statusBanner = {
         kind: 'rate-limit',
         message: 'Usage or rate limit reached. Wait a moment before sending another prompt or reset the session.',
+      };
+    } else if (turn.type === 'assistant' && MISSING_SKILL_RE.test(turn.text || '')) {
+      state.statusBanner = {
+        kind: 'missing-skill',
+        message:
+          'Required AI Office skill documentation is missing or unreadable. Restore .agents/skills/ask-matt/SKILL.md and reset Riley if needed.',
       };
     }
   }
@@ -301,7 +314,11 @@ export function createOfficeApp(options = {}) {
     try {
       await api.sendChat(message);
       state.draftMessage = '';
-      if (state.statusBanner?.kind === 'rate-limit' || state.statusBanner?.kind === 'agent-error') {
+      if (
+        state.statusBanner?.kind === 'rate-limit' ||
+        state.statusBanner?.kind === 'agent-error' ||
+        state.statusBanner?.kind === 'missing-skill'
+      ) {
         state.statusBanner = null;
       }
     } catch (err) {
@@ -309,6 +326,13 @@ export function createOfficeApp(options = {}) {
         state.statusBanner = {
           kind: 'rate-limit',
           message: err.message || 'Rate limit reached. Please wait before retrying.',
+        };
+      } else if (err?.code === 'MISSING_SKILL' || MISSING_SKILL_RE.test(err?.message || '')) {
+        state.statusBanner = {
+          kind: 'missing-skill',
+          message:
+            err?.message ||
+            'Required AI Office skill documentation is missing or unreadable. Restore .agents/skills/ask-matt/SKILL.md and reset Riley if needed.',
         };
       } else {
         state.statusBanner = {
@@ -330,9 +354,7 @@ export function createOfficeApp(options = {}) {
       } else {
         state.inputLease = { holder: 'web', updatedAt: new Date().toISOString() };
       }
-      if (terminalWs && terminalWs.readyState === 1) {
-        terminalWs.send(JSON.stringify({ type: 'override-lease' }));
-      }
+      sendTerminalMessage({ type: 'override-lease' });
       render();
     } catch (err) {
       state.statusBanner = {

@@ -60,21 +60,28 @@ check_port_available() {
   "
 }
 
+load_bridge_token() {
+  if [[ -s "$BRIDGE_TOKEN_FILE" && -z "${OFFICE_BRIDGE_TOKEN:-}" ]]; then
+    OFFICE_BRIDGE_TOKEN="$(tr -d '[:space:]' < "$BRIDGE_TOKEN_FILE")"
+    export OFFICE_BRIDGE_TOKEN
+  fi
+}
+
 ensure_token() {
   mkdir -p "$OFFICE_STATE_DIR"
   if [[ -n "${OFFICE_BRIDGE_TOKEN:-}" ]]; then
     printf '%s\n' "$OFFICE_BRIDGE_TOKEN" > "$BRIDGE_TOKEN_FILE"
     chmod 600 "$BRIDGE_TOKEN_FILE"
+    export OFFICE_BRIDGE_TOKEN
     return
   fi
-  if [[ -s "$BRIDGE_TOKEN_FILE" ]]; then
-    OFFICE_BRIDGE_TOKEN="$(tr -d '[:space:]' < "$BRIDGE_TOKEN_FILE")"
-  else
+  load_bridge_token
+  if [[ -z "${OFFICE_BRIDGE_TOKEN:-}" ]]; then
     OFFICE_BRIDGE_TOKEN="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))")"
     printf '%s\n' "$OFFICE_BRIDGE_TOKEN" > "$BRIDGE_TOKEN_FILE"
     chmod 600 "$BRIDGE_TOKEN_FILE"
+    export OFFICE_BRIDGE_TOKEN
   fi
-  export OFFICE_BRIDGE_TOKEN
 }
 
 ensure_tmux_session() {
@@ -130,7 +137,6 @@ start_bridge() {
   fi
 
   rm -f "$BRIDGE_PID_FILE"
-  check_port_available "$OFFICE_BRIDGE_PORT" "127.0.0.1" "Host Bridge"
 
   ensure_tmux_session
 
@@ -158,7 +164,6 @@ start_web() {
         return 0
       fi
       rm -f "$WEB_PID_FILE"
-      check_port_available "$OFFICE_WEB_PORT" "0.0.0.0" "Web UI"
 
       OFFICE_WEB_HOST="127.0.0.1" \
       OFFICE_WEB_PORT="$OFFICE_WEB_PORT" \
@@ -172,7 +177,6 @@ start_web() {
       ;;
     docker)
       require_cmd docker
-      check_port_available "$OFFICE_WEB_PORT" "0.0.0.0" "Web UI"
       OFFICE_WEB_PORT="$OFFICE_WEB_PORT" \
       OFFICE_BRIDGE_URL="http://host.docker.internal:${OFFICE_BRIDGE_PORT}" \
       OFFICE_BRIDGE_TOKEN="$OFFICE_BRIDGE_TOKEN" \
@@ -281,10 +285,7 @@ cmd_status() {
   local tmux_state="missing"
   local active_project_line="(none)"
 
-  if [[ -s "$BRIDGE_TOKEN_FILE" && -z "${OFFICE_BRIDGE_TOKEN:-}" ]]; then
-    OFFICE_BRIDGE_TOKEN="$(tr -d '[:space:]' < "$BRIDGE_TOKEN_FILE")"
-    export OFFICE_BRIDGE_TOKEN
-  fi
+  load_bridge_token
 
   if is_pid_running "$BRIDGE_PID_FILE"; then
     bridge_running="running (PID $(read_pid "$BRIDGE_PID_FILE"))"
@@ -389,10 +390,7 @@ cmd_reset_agent() {
     esac
   fi
 
-  if [[ -s "$BRIDGE_TOKEN_FILE" && -z "${OFFICE_BRIDGE_TOKEN:-}" ]]; then
-    OFFICE_BRIDGE_TOKEN="$(tr -d '[:space:]' < "$BRIDGE_TOKEN_FILE")"
-    export OFFICE_BRIDGE_TOKEN
-  fi
+  load_bridge_token
 
   if [[ -n "${OFFICE_BRIDGE_TOKEN:-}" ]] && node -e "
     fetch('http://127.0.0.1:${OFFICE_BRIDGE_PORT}/api/agent/reset', {
