@@ -39,6 +39,8 @@ describe('Riley Agent Definition (.claude/agents/riley.md)', () => {
 
     assert.match(body, /Riley/);
     assert.match(body, /Office Manager/);
+    assert.match(body, /\/home\/blur\/virtual/);
+    assert.match(body, /never.*cd|working directory fixed/i);
   });
 
   it('requires dynamic ask-matt consultation, active project lookup, and missing-skill recovery', () => {

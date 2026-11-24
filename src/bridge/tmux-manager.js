@@ -117,6 +117,39 @@ export function createTmuxManager(options = {}) {
     },
 
     /**
+     * Lists attached tmux clients with their last activity timestamps.
+     * @returns {Promise<Array<{ name: string, activity: number }>>}
+     */
+    async listClients() {
+      if (!(await hasSession())) {
+        return [];
+      }
+      try {
+        const { stdout } = await execFileAsync('tmux', [
+          'list-clients',
+          '-t',
+          target,
+          '-F',
+          '#{client_name}|#{client_activity}',
+        ]);
+        return stdout
+          .trim()
+          .split('\n')
+          .filter(Boolean)
+          .map((line) => {
+            const [name = '', rawActivity = '0'] = line.split('|');
+            return {
+              name: name.trim(),
+              activity: Number(rawActivity.trim()) || 0,
+            };
+          })
+          .filter((client) => client.name.length > 0);
+      } catch {
+        return [];
+      }
+    },
+
+    /**
      * Sends literal text followed by Enter to the tmux session.
      * @param {string} text
      */

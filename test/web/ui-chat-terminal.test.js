@@ -16,7 +16,7 @@ function createOfficeDom() {
   statusBannerRoot.id = 'status-banner-root';
 
   const main = doc.createElement('main');
-  main.id = 'workspace-main';
+  main.id = 'office-main';
 
   const chatPanel = doc.createElement('section');
   chatPanel.id = 'chat-view-panel';
@@ -156,7 +156,7 @@ function createHarness(options = {}) {
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
     }
-    if (method === 'POST' && url === '/api/chat') {
+    if (method === 'POST' && url === '/api/chat/send') {
       if (options.chatErrorStatus) {
         return new Response(
           JSON.stringify({ error: options.chatErrorMessage || 'Chat error', code: options.chatErrorCode }),
@@ -289,8 +289,8 @@ describe('Web UI Dual-View Chat, Terminal, Input Lease & Reset Agent', () => {
     await flushPromises();
 
     assert.ok(
-      calls.some((c) => c.method === 'POST' && c.url === '/api/chat' && c.body.message === 'Check status please'),
-      'should POST /api/chat with user message'
+      calls.some((c) => c.method === 'POST' && c.url === '/api/chat/send' && c.body.message === 'Check status please'),
+      'should POST /api/chat/send with user message'
     );
     assert.equal(doc.querySelector('[data-testid="chat-input"]').value, '', 'should clear chat input after send');
 
@@ -441,6 +441,23 @@ describe('Web UI Dual-View Chat, Terminal, Input Lease & Reset Agent', () => {
     const errBanner = doc.querySelector('[data-testid="status-banner"][data-kind="agent-error"]');
     assert.ok(errBanner, 'should show agent-error banner on terminal cutoff');
     assert.ok(errBanner.querySelector('[data-testid="banner-reset-btn"]'));
+
+    // 4. Missing-skill banner when an assistant turn reports missing skill documentation
+    const latestChatWs = getChatWs();
+    latestChatWs.emitMessage({
+      type: 'turn',
+      turn: {
+        id: 'turn-missing-skill',
+        type: 'assistant',
+        timestamp: '2026-11-25T00:05:00Z',
+        text: 'Could not read .agents/skills/ask-matt/SKILL.md — ask-matt skill is missing or inaccessible.',
+      },
+    });
+    const missingSkillBanner = doc.querySelector(
+      '[data-testid="status-banner"][data-kind="missing-skill"]'
+    );
+    assert.ok(missingSkillBanner, 'should show missing-skill banner');
+    assert.match(missingSkillBanner.textContent, /SKILL\.md|skill/i);
     app.destroy();
   });
 });

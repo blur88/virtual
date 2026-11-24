@@ -33,6 +33,15 @@ describe('Riley Workspace Settings (.claude/settings.json)', () => {
       'Bash(git add*)',
       'Bash(git commit*)',
       'Bash(git push*)',
+      'Bash(git * branch -d*)',
+      'Bash(git * branch -D*)',
+      'Bash(git * stash*)',
+      'Bash(python*)',
+      'Bash(node*)',
+      'Bash(bash*)',
+      'Bash(sh*)',
+      'Bash(curl*)',
+      'Bash(wget*)',
       'Bash(* > *)',
       'Bash(* >> *)',
     ];
@@ -45,6 +54,9 @@ describe('Riley Workspace Settings (.claude/settings.json)', () => {
     }
 
     const allowList = settings.permissions.allow ?? [];
+    assert.equal(allowList.includes('Bash(git -C * branch*)'), false, 'permissions.allow must not include broad git branch*');
+    assert.ok(allowList.includes('Bash(git -C * branch --show-current)'));
+    assert.ok(allowList.includes('Bash(git -C * branch --list*)'));
     for (const forbidden of ['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Agent', 'Task']) {
       assert.equal(
         allowList.includes(forbidden),

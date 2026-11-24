@@ -59,6 +59,30 @@ function sendWsJson(ws, payload) {
   }
 }
 
+function listenServer(server, host, port) {
+  return new Promise((resolve, reject) => {
+    const onError = (err) => {
+      server.off('listening', onListening);
+      if (err && err.code === 'EADDRINUSE') {
+        const wrapped = new Error(
+          `Host Bridge failed to start: port ${port} on ${host} is already in use.`
+        );
+        wrapped.code = 'EADDRINUSE';
+        reject(wrapped);
+        return;
+      }
+      reject(err);
+    };
+    const onListening = () => {
+      server.off('error', onError);
+      resolve();
+    };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(port, host);
+  });
+}
+
 /**
  * Creates the Host Bridge HTTP + WebSocket server.
  *
@@ -92,6 +116,12 @@ export function createHostBridge(options = {}) {
   const terminalCleanups = new Set();
   const wss = new WebSocketServer({ noServer: true });
 
+  function getTranscriptState() {
+    return transcriptWatcher
+      ? transcriptWatcher.getState()
+      : { activeFile: null, turns: [], isBusy: false };
+  }
+
   function broadcastChat(payload) {
     for (const client of chatClients) {
       sendWsJson(client, payload);
@@ -123,9 +153,7 @@ export function createHostBridge(options = {}) {
         tmuxManager.getStatus(),
         registry.getActiveProject(),
       ]);
-      const transcriptState = transcriptWatcher
-        ? transcriptWatcher.getState()
-        : { activeFile: null, turns: [], isBusy: false };
+      const transcriptState = getTranscriptState();
       return sendJson(res, 200, {
         ok: true,
         tmux,
@@ -167,7 +195,7 @@ export function createHostBridge(options = {}) {
     const projectIdMatch = /^\/api\/projects\/([^/]+)$/.exec(pathname);
     if (projectIdMatch) {
       const id = decodeURIComponent(projectIdMatch[1]);
-      if (req.method === 'PATCH') {
+      if (req.method === 'PUT' || req.method === 'PATCH') {
         const body = await readJsonBody(req);
         const project = await registry.editProject(id, { name: body.name, path: body.path });
         return sendJson(res, 200, { project });
@@ -179,19 +207,15 @@ export function createHostBridge(options = {}) {
     }
 
     if (req.method === 'GET' && pathname === '/api/transcript') {
-      const state = transcriptWatcher
-        ? transcriptWatcher.getState()
-        : { activeFile: null, turns: [], isBusy: false };
-      return sendJson(res, 200, state);
+      return sendJson(res, 200, getTranscriptState());
     }
 
-    if (req.method === 'POST' && pathname === '/api/chat') {
+    if (req.method === 'POST' && (pathname === '/api/chat/send' || pathname === '/api/chat')) {
       const body = await readJsonBody(req);
       if (typeof body.message !== 'string' || body.message.trim() === '') {
         return sendJson(res, 400, { error: 'Message must be a non-empty string.' });
       }
-      const transcriptState = transcriptWatcher ? transcriptWatcher.getState() : { isBusy: false };
-      if (transcriptState.isBusy) {
+      if (getTranscriptState().isBusy) {
         return sendJson(res, 409, {
           error: 'Agent is currently processing a turn. Wait until idle.',
           code: 'AGENT_BUSY',
@@ -244,9 +268,7 @@ export function createHostBridge(options = {}) {
 
   function handleChatWs(ws) {
     chatClients.add(ws);
-    const state = transcriptWatcher
-      ? transcriptWatcher.getState()
-      : { activeFile: null, turns: [], isBusy: false };
+    const state = getTranscriptState();
     sendWsJson(ws, {
       type: 'history',
       activeFile: state.activeFile,
@@ -309,17 +331,56 @@ export function createHostBridge(options = {}) {
 
     sendWsJson(ws, { type: 'lease', inputLease: inputLease.getState() });
 
+    const lastClientActivities = new Map();
+    let clientsInitialized = false;
+
+    async function checkNativeClientActivity() {
+      if (typeof tmuxManager.listClients !== 'function') {
+        return;
+      }
+      const clients = await tmuxManager.listClients();
+      let nativeActivityDetected = false;
+      for (const client of clients) {
+        if (ptyProc?.ptyName && client.name === ptyProc.ptyName) {
+          continue;
+        }
+        const prev = lastClientActivities.get(client.name);
+        if (prev !== undefined ? client.activity > prev : clientsInitialized && client.activity > 0) {
+          nativeActivityDetected = true;
+        }
+        lastClientActivities.set(client.name, client.activity);
+      }
+      clientsInitialized = true;
+      if (nativeActivityDetected) {
+        const leaseState = inputLease.recordNativeActivity();
+        sendWsJson(ws, { type: 'lease', inputLease: leaseState });
+      }
+    }
+
+    await checkNativeClientActivity().catch(() => {});
+
     pollTimer = setInterval(async () => {
       try {
         const status = await tmuxManager.getStatus();
         if (!status.exists || !status.running || status.inHostShell) {
           triggerCutoff('Agent exited to raw host shell');
+          return;
         }
+        await checkNativeClientActivity();
       } catch {
         triggerCutoff('Failed to verify agent session status');
       }
     }, terminalStatusPollMs);
     pollTimer.unref();
+
+    function handleTerminalInput(data) {
+      const check = inputLease.recordWebInput();
+      if (!check.allowed) {
+        sendWsJson(ws, { type: 'lease-blocked', inputLease: check.state });
+        return;
+      }
+      ptyProc?.write(data);
+    }
 
     ws.on('message', (raw) => {
       if (cutoffActive) {
@@ -344,23 +405,13 @@ export function createHostBridge(options = {}) {
           return;
         }
         if (msg.type === 'input' && typeof msg.data === 'string') {
-          const check = inputLease.recordWebInput();
-          if (!check.allowed) {
-            sendWsJson(ws, { type: 'lease-blocked', inputLease: check.state });
-            return;
-          }
-          ptyProc?.write(msg.data);
+          handleTerminalInput(msg.data);
           return;
         }
         return;
       }
 
-      const check = inputLease.recordWebInput();
-      if (!check.allowed) {
-        sendWsJson(ws, { type: 'lease-blocked', inputLease: check.state });
-        return;
-      }
-      ptyProc?.write(text);
+      handleTerminalInput(text);
     });
 
     ws.on('close', cleanup);
@@ -414,27 +465,7 @@ export function createHostBridge(options = {}) {
         await transcriptWatcher.start();
       }
 
-      await new Promise((resolve, reject) => {
-        const onError = (err) => {
-          server.off('listening', onListening);
-          if (err && err.code === 'EADDRINUSE') {
-            const wrapped = new Error(
-              `Host Bridge failed to start: port ${port} on ${host} is already in use.`
-            );
-            wrapped.code = 'EADDRINUSE';
-            reject(wrapped);
-            return;
-          }
-          reject(err);
-        };
-        const onListening = () => {
-          server.off('error', onError);
-          resolve();
-        };
-        server.once('error', onError);
-        server.once('listening', onListening);
-        server.listen(port, host);
-      });
+      await listenServer(server, host, port);
 
       const address = server.address();
       return {

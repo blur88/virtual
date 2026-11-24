@@ -15,6 +15,7 @@ export function attachTmuxPty({ sessionName, cols = 120, rows = 36 }) {
   });
 
   return {
+    ptyName: proc.pty || null,
     write(data) {
       proc.write(data);
     },

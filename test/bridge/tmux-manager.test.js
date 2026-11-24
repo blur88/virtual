@@ -115,4 +115,16 @@ describe('tmux-manager', () => {
     ]);
     assert.notEqual(pidBefore.trim(), pidAfter.trim());
   });
+
+  it('lists attached tmux clients with activity timestamps', async () => {
+    manager = createTmuxManager({
+      sessionName,
+      cwd: tmpDir,
+      agentCommand: `${process.execPath} -e "setInterval(() => {}, 1000)"`,
+    });
+
+    await manager.ensureSession();
+    const clients = await manager.listClients();
+    assert.deepEqual(clients, []);
+  });
 });

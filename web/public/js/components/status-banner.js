@@ -3,7 +3,7 @@
  *
  * @param {HTMLElement} container
  * @param {{
- *   banner: { kind: 'connection' | 'rate-limit' | 'agent-error', message: string, actionLabel?: string } | null
+ *   banner: { kind: 'connection' | 'rate-limit' | 'agent-error' | 'missing-skill', message: string, actionLabel?: string } | null
  * }} state
  * @param {{
  *   onReconnect: () => void,
@@ -41,10 +41,10 @@ export function renderStatusBanner(container, state, handlers) {
     btn.textContent = actionLabel || 'Reconnect';
     btn.addEventListener('click', () => handlers.onReconnect());
     actions.appendChild(btn);
-  } else if (kind === 'agent-error') {
+  } else if (kind === 'agent-error' || kind === 'missing-skill') {
     const btn = doc.createElement('button');
     btn.type = 'button';
-    btn.className = 'btn btn-danger';
+    btn.className = kind === 'agent-error' ? 'btn btn-danger' : 'btn';
     btn.dataset.testid = 'banner-reset-btn';
     btn.textContent = actionLabel || 'Reset Agent';
     btn.addEventListener('click', () => handlers.onOpenReset());

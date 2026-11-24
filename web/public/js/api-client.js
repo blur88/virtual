@@ -60,7 +60,7 @@ export function createApiClient(options = {}) {
     },
     editProject(id, { name, path }) {
       return request(`/api/projects/${encodeURIComponent(id)}`, {
-        method: 'PATCH',
+        method: 'PUT',
         body: { name, path },
       });
     },
@@ -81,7 +81,7 @@ export function createApiClient(options = {}) {
       return request('/api/transcript');
     },
     sendChat(message) {
-      return request('/api/chat', {
+      return request('/api/chat/send', {
         method: 'POST',
         body: { message },
       });
