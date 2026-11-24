@@ -23,8 +23,14 @@ async function main() {
   const sessionName = process.env.OFFICE_TMUX_SESSION || 'ai-office-riley';
   const transcriptDir = resolveTranscriptDir();
 
-  const registry = createProjectRegistry();
-  const tmuxManager = createTmuxManager({ sessionName, cwd: process.cwd() });
+  const registry = createProjectRegistry({
+    registryPath: process.env.OFFICE_PROJECTS_FILE || undefined,
+  });
+  const tmuxManager = createTmuxManager({
+    sessionName,
+    cwd: process.cwd(),
+    agentCommand: process.env.OFFICE_AGENT_COMMAND || undefined,
+  });
   const transcriptWatcher = createTranscriptWatcher({ transcriptDir });
 
   await tmuxManager.ensureSession();
