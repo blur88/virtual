@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Office — Riley</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="app" class="office-shell">
+      <header id="active-project-banner" class="project-banner" aria-label="Active Project Banner"></header>
+
+      <main id="workspace-main" class="workspace-main">
+        <section id="chat-view-panel" class="view-panel" data-view="chat" aria-label="Chat View">
+          <div class="placeholder-card">
+            <h2>Chat with Riley (Office Manager)</h2>
+            <p class="muted">
+              Chat streaming and advisory routing controls will be mounted here in Ticket #6.
+            </p>
+          </div>
+        </section>
+
+        <section
+          id="terminal-view-panel"
+          class="view-panel"
+          data-view="terminal"
+          aria-label="Terminal View"
+          hidden
+        >
+          <div class="placeholder-card">
+            <h2>Embedded Terminal</h2>
+            <p class="muted">
+              xterm.js terminal and Input Lease arbitration will be mounted here in Ticket #6.
+            </p>
+          </div>
+        </section>
+      </main>
+
+      <div id="project-settings-modal-root"></div>
+    </div>
+
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>
