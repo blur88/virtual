@@ -56,6 +56,55 @@ describe('guardrails: glossary avoided-term check', () => {
       assert.equal(result.violations[0].term, 'bot');
     });
   });
+
+  it('flags avoided terms in describe(), it(), and test() titles under test/ while ignoring fixture strings and substrings', () => {
+    withTempDir((dir) => {
+      writeFileSync(
+        join(dir, 'GLOSSARY.md'),
+        '# Glossary\n\n**Office Manager**:\nRiley\n_Avoid_: bot, workspace\n'
+      );
+      mkdirSync(join(dir, 'test', 'sample'), { recursive: true });
+
+      // Fixture strings and substrings inside test bodies must NOT trigger
+      writeFileSync(
+        join(dir, 'test', 'sample', 'clean.test.js'),
+        [
+          "describe('robotics and workspaces', () => {",
+          "  it('checks fixture strings', () => {",
+          "    const fixture = 'bot workspace';",
+          '  });',
+          '});',
+        ].join('\n')
+      );
+
+      let result = checkGlossary(dir);
+      assert.equal(result.ok, true);
+      assert.deepEqual(result.violations, []);
+
+      // Avoided terms in describe(), it(), and test() titles MUST trigger
+      writeFileSync(
+        join(dir, 'test', 'sample', 'bad.test.mjs'),
+        [
+          "describe('bot suite', () => {",
+          "  it('handles workspace', () => {});",
+          "  test(`rejects bot`, () => {});",
+          '});',
+        ].join('\n')
+      );
+
+      result = checkGlossary(dir);
+      assert.equal(result.ok, false);
+      assert.equal(result.violations.length, 3);
+      assert.deepEqual(
+        result.violations.map((v) => `${v.file}:${v.line}:${v.term}`),
+        [
+          'test/sample/bad.test.mjs:1:bot',
+          'test/sample/bad.test.mjs:2:workspace',
+          'test/sample/bad.test.mjs:3:bot',
+        ]
+      );
+    });
+  });
 });
 
 describe('guardrails: Riley policy check', () => {

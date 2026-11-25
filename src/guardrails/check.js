@@ -15,6 +15,7 @@ const IGNORED_DIRS = new Set([
 
 const GLOSSARY_SCAN_ROOTS = ['src', 'web'];
 const GLOSSARY_EXTENSIONS = new Set(['.js', '.mjs', '.html', '.css']);
+const TEST_TITLE_REGEX = /^\s*(?:await\s+)?(?:describe|it|test)(?:\.(?:only|skip|todo))?\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g;
 const JS_SYNTAX_ROOTS = ['src', 'web', 'test', 'scripts'];
 
 export const REQUIRED_RILEY_DENY_RULES = [
@@ -110,8 +111,16 @@ export function parseGlossaryAvoidedTerms(glossaryContent) {
   return terms;
 }
 
+function collectGlossaryMatches(relPath, lineNumber, text, matchers, violations) {
+  for (const { term, regex } of matchers) {
+    if (regex.test(text)) {
+      violations.push({ file: relPath, line: lineNumber, term });
+    }
+  }
+}
+
 /**
- * Scans src/ and web/ files for avoided terms from GLOSSARY.md using word boundaries.
+ * Scans src/ and web/ files, plus describe/it/test titles under test/, for avoided terms from GLOSSARY.md.
  */
 export function checkGlossary(rootDir) {
   const glossaryPath = join(rootDir, 'GLOSSARY.md');
@@ -131,10 +140,19 @@ export function checkGlossary(rootDir) {
     const relPath = relative(rootDir, filePath).replace(/\\/g, '/');
     const lines = readFileSync(filePath, 'utf8').split('\n');
     for (let i = 0; i < lines.length; i += 1) {
-      for (const { term, regex } of matchers) {
-        if (regex.test(lines[i])) {
-          violations.push({ file: relPath, line: i + 1, term });
-        }
+      collectGlossaryMatches(relPath, i + 1, lines[i], matchers, violations);
+    }
+  }
+
+  const testFiles = walkFiles(rootDir, ['test'], new Set(['.js', '.mjs']));
+  for (const filePath of testFiles) {
+    const relPath = relative(rootDir, filePath).replace(/\\/g, '/');
+    const lines = readFileSync(filePath, 'utf8').split('\n');
+    for (let i = 0; i < lines.length; i += 1) {
+      TEST_TITLE_REGEX.lastIndex = 0;
+      let match;
+      while ((match = TEST_TITLE_REGEX.exec(lines[i])) !== null) {
+        collectGlossaryMatches(relPath, i + 1, match[2], matchers, violations);
       }
     }
   }

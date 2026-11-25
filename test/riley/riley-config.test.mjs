@@ -13,7 +13,7 @@ describe('Riley AI Office Settings (.claude/settings.json)', () => {
     assert.equal(settings.agent, 'riley');
   });
 
-  it('enforces non-bypassable read-only tool permissions via permissions.deny', () => {
+  it('enforces non-bypassable read-only permissions via permissions.deny', () => {
     const settings = JSON.parse(readFileSync(SETTINGS_PATH, 'utf8'));
     assert.ok(settings.permissions, 'permissions object must exist');
     assert.ok(Array.isArray(settings.permissions.deny), 'permissions.deny must be an array');
