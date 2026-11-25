@@ -1,0 +1,14 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    ports:
+      - "${OFFICE_WEB_PORT:-3000}:${OFFICE_WEB_PORT:-3000}"
+    environment:
+      - OFFICE_WEB_PORT=${OFFICE_WEB_PORT:-3000}
+      - OFFICE_BRIDGE_URL=${OFFICE_BRIDGE_URL:-http://host.docker.internal:4040}
+      - OFFICE_BRIDGE_TOKEN=${OFFICE_BRIDGE_TOKEN:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Office — Riley</title>
+    <link rel="stylesheet" href="/vendor/xterm/xterm.css" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="app" class="office-shell">
+      <header id="active-project-banner" class="project-banner" aria-label="Active Project Banner"></header>
+      <div id="status-banner-root"></div>
+
+      <main id="office-main" class="office-main">
+        <section id="chat-view-panel" class="view-panel" data-view="chat" aria-label="Chat View"></section>
+        <section
+          id="terminal-view-panel"
+          class="view-panel"
+          data-view="terminal"
+          aria-label="Terminal View"
+          hidden
+        ></section>
+      </main>
+
+      <div id="project-settings-modal-root"></div>
+      <div id="reset-agent-modal-root"></div>
+    </div>
+
+    <script src="/vendor/xterm/xterm.js"></script>
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>
