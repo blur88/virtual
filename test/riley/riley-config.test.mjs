@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 const REPO_ROOT = resolve(import.meta.dirname, '..', '..');
 const SETTINGS_PATH = resolve(REPO_ROOT, '.claude', 'settings.json');
 
-describe('Riley Workspace Settings (.claude/settings.json)', () => {
+describe('Riley AI Office Settings (.claude/settings.json)', () => {
   it('configures riley as the default interactive agent', () => {
     assert.equal(existsSync(SETTINGS_PATH), true, '.claude/settings.json must exist');
     const settings = JSON.parse(readFileSync(SETTINGS_PATH, 'utf8'));

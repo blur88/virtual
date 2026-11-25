@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install system dependencies (tmux, shellcheck)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tmux shellcheck
+
+      - name: Install root and web dependencies
+        run: |
+          npm ci
+          npm --prefix web ci
+
+      - name: Run automated guardrails and tests
+        run: npm run check -- --require-shellcheck
+
+      - name: Build Web UI Docker image
+        run: docker build -f web/Dockerfile .
